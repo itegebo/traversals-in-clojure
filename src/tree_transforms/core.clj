@@ -1,14 +1,20 @@
-(ns tree-transforms.core)
+(ns tree-transforms.core
+  (:import java.lang.Long
+           java.lang.String
+           clojure.lang.PersistentVector))
+
+(def Vector PersistentVector)
 
 ;; traverse thing what how
 
 ;; linear traversal
 (def aline [1 "foo"])
 
-(defmulti ltrav class)
-(defmethod ltrav java.lang.Long [x] (inc x))
-(defmethod ltrav java.lang.String [x] (str x "b"))
-(defmethod ltrav clojure.lang.PersistentVector [x] (vec (map ltrav x)))
+(defmulti  ltrav class)
+(defmethod ltrav Long   [x] (inc x))
+(defmethod ltrav String [x] (str x "b"))
+(defmethod ltrav Vector [x] (vec (map ltrav x)))
 
 (assert (= [2 "foob"]
            (ltrav aline)))
+
