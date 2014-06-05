@@ -13,8 +13,9 @@
 (defmulti  ltrav class)
 (defmethod ltrav Long   [x] (inc x))
 (defmethod ltrav String [x] (str x "b"))
-(defmethod ltrav Vector [x] (vec (map ltrav x)))
+(defmethod ltrav Vector [x] (mapv ltrav x))
 
 (assert (= [2 "foob"]
            (ltrav aline)))
+
 
