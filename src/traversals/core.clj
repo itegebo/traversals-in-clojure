@@ -1,13 +1,14 @@
-(ns tree-transforms.core
+(ns traversals.core
   (:import java.lang.Long
            java.lang.String
            clojure.lang.PersistentVector))
 
-(def Vector PersistentVector)
+;; a shorter alias
+(def Vector PersistentVector) ; I wonder how this will bite me...
 
-;; traverse thing what how
+;; traverse thing. what? how?
 
-;; linear traversal
+;; "linear" traversals
 (def aline [1 "foo"]) ; Vector of ( Long | String | Vector )
 
 (defmulti  ltrav class)
@@ -22,7 +23,7 @@
 (assert (= [[2] [[["foob"]]]]
            (ltrav [[1] [[["foo"]]]])))
 
-;; maybe we don't vector nesting
+;; maybe we don't want vector nesting
 (defmulti  ltrav2d class) ; ltrav take 2, dispatcher
 (defmethod ltrav2d Long   [x] (inc x))
 (defmethod ltrav2d String [x] (str x "b"))
@@ -41,6 +42,7 @@
 (assert (= [2 "foob"]
            (ltrav2 aline)))
 
+;; Probably, one doesn't want this behavior, but, it's there now.
 (assert (not= [[2] [[["foob"]]]]
               (ltrav2 [[1] [[["foo"]]]])))
 
@@ -56,26 +58,26 @@
   (let [[dv body] case]
     `(defmethod ~n ~dv ~ps ~body)))
 
-;; I deliberately put the dispatch value over the cases column
-;; also, wrapping clauses in a vec was because I didn't easily think
-;; of a func for pairing up every 2 elements...well, okay:
-(defn pairup [l ps]
-  (if-let [[a b & r] l]
-    (pairup r (conj ps [a b]))
-    ps))
-
 (def defrec-example '(defrec ltrav3 [x]
                        class
                        [Long   (inc x)]
                        [String (str x "b")]
                        [Vector (mapv ltrav3 x)]))
+;; I deliberately put the dispatch value over the cases column
+;; also, wrapping clauses in a vec was because I didn't readily think
+;; of a func for pairing up every 2 elements...well, okay:
+(defn pairup [l ps]
+  (if-let [[a b & r] l]
+    (pairup r (conj ps [a b]))
+    ps))
+;; so see defrec2 for the use of this guy.
 
 (assert (= (let [[_ n ps _ & cases] defrec-example]
              (case->defmethod n ps (first cases)))
            '(clojure.core/defmethod ltrav3 Long [x] (inc x))))
 
 (defmacro defrec [n ps dfn & cases]
-  (let [defmethods (map #(case->defmethod n ps %) cases)]
+  (let [defmethods (map (fn acd [c] (case->defmethod n ps c)) cases)]
     `(do
        (defmulti ~n ~dfn)
        ~@defmethods)))
@@ -101,8 +103,7 @@
 ;;; How would defrec specify ltrav2?
 ;; it might be too simple, one wouldn't implement that that way
 
-;;; Quickly, here's the version with the explicit vecs around cases
-
+;;; Quickly, here's the version without the explicit vecs around cases
 (def defrec-example2 '(defrec ltrav3 [x]
                         class
                         Long   (inc x)
@@ -120,8 +121,28 @@
   class
   Long   (inc x)
   String (str x "b")
-  Vector (mapv ltrav3 x))
+  Vector (mapv ltrav3-with-defrec2 x))
 
 ;;; Okay, that's nice.  Let's do a vec/map/basecase example
 
 ;; TODO
+
+;; You should do one that doesn't use "class" as the dfn...
+;; Hey.  Maybe make defrec (or something) assume "class" as the dfn...
+
+(defrec weird-str [x]
+  class
+  [Long   (str "l" x)]
+  [String x]
+  [Vector (reduce str "" (map weird-str x))]) ; blows out da stack?
+
+(assert (= (weird-str [[1] "a" [[[9]]]])
+           "l1al9"))
+
+;;; Next Steps
+;;
+;; I'm enjoying the bit of sugar, an allusion to pattern matching, but
+;; I'd like to have more clarity around the shape of the thing I'm
+;; constructing.  Also, it's more important to have something
+;; intelligent to do in the :default case.  I also feel like there's a
+;; bunch of error handling debt already.
