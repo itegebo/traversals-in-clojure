@@ -52,36 +52,76 @@
 (defmethod ltrav3 String [x] (str x "b"))
 (defmethod ltrav3 Vector [x] (mapv ltrav3 x))
 
-(defn clause->defmethod [n ps clause]
-  (let [[dv body] clause]
+(defn case->defmethod [n ps case]
+  (let [[dv body] case]
     `(defmethod ~n ~dv ~ps ~body)))
 
-(assert (= (let [[_ n _ ps & clauses] defrec-example]
-             (clause->defmethod n ps (first clauses)))
+;; I deliberately put the dispatch value over the cases column
+;; also, wrapping clauses in a vec was because I didn't easily think
+;; of a func for pairing up every 2 elements...well, okay:
+(defn pairup [l ps]
+  (if-let [[a b & r] l]
+    (pairup r (conj ps [a b]))
+    ps))
+
+(def defrec-example '(defrec ltrav3 [x]
+                       class
+                       [Long   (inc x)]
+                       [String (str x "b")]
+                       [Vector (mapv ltrav3 x)]))
+
+(assert (= (let [[_ n ps _ & cases] defrec-example]
+             (case->defmethod n ps (first cases)))
            '(clojure.core/defmethod ltrav3 Long [x] (inc x))))
 
-(defmacro defrec [n dfn ps & clauses]
-  (let [defmethods (map #(clause->defmethod n ps %) clauses)]
+(defmacro defrec [n ps dfn & cases]
+  (let [defmethods (map #(case->defmethod n ps %) cases)]
     `(do
        (defmulti ~n ~dfn)
        ~@defmethods)))
 
-(def defrec-example '(defrec ltrav3 class
-                       [x]
-                       [Long   (inc x)]
-                       [String (str x "b")]
-                       [Vector (mapv ltrav3 x)])) 
-
 ;; TODO Add test for defrec
 
-(defrec ltrav3 class
-  [x]
+(defrec ltrav3 [x]
+  class
   [Long   (inc x)]
   [String (str x "b")]
   [Vector (mapv ltrav3 x)])
 
-(assert (= [2 "foob"]
-           (ltrav3 aline)))
+(assert (= (ltrav3 aline)
+           [2 "foob"]))
 
-(assert (= [[2] [[["foob"]]]]
-           (ltrav3 [[1] [[["foo"]]]])))
+(assert (= (ltrav3 [[1] [[["foo"]]]])
+           [[2] [[["foob"]]]]))
+
+;;; Observations about what a "defrec" would need to do:
+;; specify a :default multimethod for handling invalid input
+;; could identity recursive vs base cases
+
+;;; How would defrec specify ltrav2?
+;; it might be too simple, one wouldn't implement that that way
+
+;;; Quickly, here's the version with the explicit vecs around cases
+
+(def defrec-example2 '(defrec ltrav3 [x]
+                        class
+                        Long   (inc x)
+                        String (str x "b")
+                        Vector (mapv ltrav3 x)))
+
+(defmacro defrec2 [n ps dfn & cases]
+  (let [defmethods (->> (pairup cases [])
+                        (map #(case->defmethod n ps %)))]
+    `(do
+       (defmulti ~n ~dfn)
+       ~@defmethods)))
+
+(defrec2 ltrav3-with-defrec2 [x]
+  class
+  Long   (inc x)
+  String (str x "b")
+  Vector (mapv ltrav3 x))
+
+;;; Okay, that's nice.  Let's do a vec/map/basecase example
+
+;; TODO
