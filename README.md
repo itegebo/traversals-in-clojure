@@ -1,6 +1,6 @@
 # tree-transforms
 
-A Clojure library designed to ... well, that part is up to you.
+Just exploring and sharing some notion of "transformation" of clojure data - probably better as GISTs
 
 ## Usage
 
